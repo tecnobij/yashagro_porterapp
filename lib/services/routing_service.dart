@@ -8,6 +8,47 @@ import 'package:url_launcher/url_launcher.dart';
 class RoutingService {
   static final Dio _dio = Dio();
 
+  /// Opens a single location in Google Maps using precise coordinates
+  static Future<void> launchGoogleMapsStop(LatLng point, {String? name}) async {
+    final uri = Uri.parse(
+      "https://www.google.com/maps/search/?api=1&query=${point.latitude},${point.longitude}",
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      log("Could not launch Google Maps stop URL", name: 'routing_service');
+    }
+  }
+
+  /// Launches Google Maps with named visit stops as waypoints (origin → stops → destination)
+  /// [stops] list should be [{lat, lon, name}] in visit order.
+  static Future<void> launchGoogleMapsWithStops(
+    List<LatLng> routePoints,
+    List<Map<String, dynamic>> stops,
+  ) async {
+    // Use visit stops as waypoints; fall back to raw route if no stops
+    if (stops.isNotEmpty) {
+      final origin = "${routePoints.first.latitude},${routePoints.first.longitude}";
+      final destination = "${stops.last['lat']},${stops.last['lon']}";
+      final intermediateStops = stops.length > 1 ? stops.sublist(0, stops.length - 1) : <Map<String, dynamic>>[];
+      final waypoints = intermediateStops
+          .map((s) => "${s['lat']},${s['lon']}")
+          .join('|');
+      final url = "https://www.google.com/maps/dir/?api=1"
+          "&origin=$origin"
+          "&destination=$destination"
+          "${waypoints.isNotEmpty ? '&waypoints=$waypoints' : ''}"
+          "&travelmode=driving";
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    // Fallback: original behavior
+    await launchGoogleMapsRoute(routePoints);
+  }
+
   /// Launches Google Maps to navigate/view the specified LatLng route points
   static Future<void> launchGoogleMapsRoute(List<LatLng> points) async {
     if (points.isEmpty) return;

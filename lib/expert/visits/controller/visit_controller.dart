@@ -95,24 +95,24 @@ class VisitController extends GetxController {
     return success;
   }
 
-  Future<bool> submitFeedback({
+  Future<({bool success, String message})> submitFeedback({
     required int visitId,
     required String feedback,
     required String recommendation,
     required String cropCondition,
     required String nextVisitDate,
   }) async {
-    bool success = await _apiService.submitVisitFeedback(
+    final result = await _apiService.submitVisitFeedback(
       visitId: visitId,
       feedback: feedback,
       recommendation: recommendation,
       cropCondition: cropCondition,
       nextVisitDate: nextVisitDate,
     );
-    if (success) {
+    if (result.success) {
       await fetchAllData();
     }
-    return success;
+    return result;
   }
 
   Future<VisitFeedbackModel?> getVisitFeedback(int visitId) async {

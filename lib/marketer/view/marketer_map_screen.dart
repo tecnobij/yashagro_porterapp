@@ -591,10 +591,32 @@ class _MarketerMapScreenState extends State<MarketerMapScreen> {
                             color: Colors.blue,
                           ),
                           tooltip: "Open in Google Maps",
-                          onPressed:
-                              () => RoutingService.launchGoogleMapsRoute(
-                                routePoints,
-                              ),
+                          onPressed: () {
+                            // Build stops from visits (origin → each visit stop)
+                            final visitStops = sortedVisits
+                                .map((v) {
+                                  final lat = double.tryParse(
+                                    v['latitude']?.toString() ?? '',
+                                  );
+                                  final lon = double.tryParse(
+                                    v['longitude']?.toString() ?? '',
+                                  );
+                                  if (lat == null || lon == null) return null;
+                                  final payload =
+                                      v['payload'] as Map<String, dynamic>? ??
+                                      {};
+                                  final name =
+                                      payload['customer_name']?.toString() ??
+                                      '';
+                                  return {'lat': lat, 'lon': lon, 'name': name};
+                                })
+                                .whereType<Map<String, dynamic>>()
+                                .toList();
+                            RoutingService.launchGoogleMapsWithStops(
+                              routePoints,
+                              visitStops,
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -662,6 +684,172 @@ class _MarketerMapScreenState extends State<MarketerMapScreen> {
           ),
           const SizedBox(height: 20),
 
+          // Route Stops section
+          if (sortedVisits.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.route_rounded,
+                        size: 14,
+                        color: Colors.blue.shade700,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Route Stops (${sortedVisits.length})",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "Tap to open in Maps",
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 72,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: sortedVisits.length,
+                itemBuilder: (context, idx) {
+                  final v = sortedVisits[idx];
+                  final lat = double.tryParse(
+                    v['latitude']?.toString() ?? '',
+                  );
+                  final lon = double.tryParse(
+                    v['longitude']?.toString() ?? '',
+                  );
+                  final payload =
+                      v['payload'] as Map<String, dynamic>? ?? {};
+                  final name =
+                      payload['customer_name']?.toString() ??
+                      'Stop ${idx + 1}';
+                  final isFarm = v['type'] == 'FARM_VISIT';
+                  final canOpen = lat != null && lon != null;
+                  return GestureDetector(
+                    onTap:
+                        canOpen
+                            ? () => RoutingService.launchGoogleMapsStop(
+                              LatLng(lat!, lon!),
+                              name: name,
+                            )
+                            : null,
+                    child: Container(
+                      width: 90,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color:
+                              isFarm
+                                  ? Colors.green.shade200
+                                  : Colors.orange.shade200,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color:
+                                      isFarm
+                                          ? Colors.green.shade50
+                                          : Colors.orange.shade50,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  isFarm
+                                      ? Icons.agriculture_rounded
+                                      : Icons.storefront_rounded,
+                                  size: 16,
+                                  color:
+                                      isFarm
+                                          ? Colors.green.shade700
+                                          : Colors.orange.shade700,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.blue,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  '${idx + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (canOpen)
+                            Icon(
+                              Icons.open_in_new_rounded,
+                              size: 10,
+                              color: Colors.blue.shade400,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // Visits feed section with Toggle filters
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -718,62 +906,91 @@ class _MarketerMapScreenState extends State<MarketerMapScreen> {
                 final phone = payload['mobile_no']?.toString() ?? 'N/A';
                 final crop = payload['crop_name']?.toString();
 
-                return Card(
-                  color: Colors.white,
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: Colors.grey.shade200),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color:
+                  return GestureDetector(
+                    onTap: () {
+                      final lat = double.tryParse(
+                        v['latitude']?.toString() ?? '',
+                      );
+                      final lon = double.tryParse(
+                        v['longitude']?.toString() ?? '',
+                      );
+                      if (lat != null && lon != null) {
+                        RoutingService.launchGoogleMapsStop(
+                          LatLng(lat, lon),
+                          name: name,
+                        );
+                      }
+                    },
+                    child: Card(
+                      color: Colors.white,
+                      elevation: 0,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color:
+                                isFarm
+                                    ? Colors.green.shade50
+                                    : Colors.orange.shade50,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
                             isFarm
-                                ? Colors.green.shade50
-                                : Colors.orange.shade50,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isFarm
-                            ? Icons.agriculture_rounded
-                            : Icons.storefront_rounded,
-                        color:
-                            isFarm
-                                ? Colors.green.shade700
-                                : Colors.orange.shade700,
-                        size: 24,
+                                ? Icons.agriculture_rounded
+                                : Icons.storefront_rounded,
+                            color:
+                                isFarm
+                                    ? Colors.green.shade700
+                                    : Colors.orange.shade700,
+                            size: 24,
+                          ),
+                        ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.open_in_new_rounded,
+                              size: 14,
+                              color: Colors.blue.shade400,
+                            ),
+                          ],
+                        ),
+                        subtitle: Text(
+                          isFarm
+                              ? "Farm Visit • $crop\nPhone: $phone"
+                              : "Store Visit\nPhone: $phone",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        trailing: Text(
+                          time,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Colors.green,
+                          ),
+                        ),
                       ),
                     ),
-                    title: Text(
-                      name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      isFarm
-                          ? "Farm Visit • $crop\nPhone: $phone"
-                          : "Store Visit\nPhone: $phone",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    trailing: Text(
-                      time,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: Colors.green,
-                      ),
-                    ),
-                  ),
-                );
+                  );
               },
             ),
           const SizedBox(height: 30),

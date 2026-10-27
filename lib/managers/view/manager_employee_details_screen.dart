@@ -370,12 +370,14 @@ class _ManagerEmployeeDetailsScreenState
 
     // Parse coordinates
     final List<LatLng> routePoints = [];
-    
+
     // Sort locations chronologically
     final sortedLocations = List<dynamic>.from(locations);
     sortedLocations.sort((a, b) {
-      final aTime = a['recorded_at']?.toString() ?? a['created_at']?.toString() ?? '';
-      final bTime = b['recorded_at']?.toString() ?? b['created_at']?.toString() ?? '';
+      final aTime =
+          a['recorded_at']?.toString() ?? a['created_at']?.toString() ?? '';
+      final bTime =
+          b['recorded_at']?.toString() ?? b['created_at']?.toString() ?? '';
       return aTime.compareTo(bTime);
     });
 
@@ -561,7 +563,8 @@ class _ManagerEmployeeDetailsScreenState
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.example.partener_app',
                     ),
                     if (routePoints.isNotEmpty)
@@ -577,10 +580,17 @@ class _ManagerEmployeeDetailsScreenState
                             point: routePoints.first,
                             width: 30,
                             height: 30,
-                            child: const Icon(
-                              Icons.trip_origin_rounded,
-                              color: Colors.green,
-                              size: 20,
+                            child: GestureDetector(
+                              onTap:
+                                  () => RoutingService.launchGoogleMapsStop(
+                                    routePoints.first,
+                                    name: 'Start Location',
+                                  ),
+                              child: const Icon(
+                                Icons.trip_origin_rounded,
+                                color: Colors.green,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ...visits.map((v) {
@@ -603,7 +613,9 @@ class _ManagerEmployeeDetailsScreenState
                             width: 38,
                             height: 38,
                             child: GestureDetector(
-                              onTap: () => _showVisitDetailsBottomSheet(context, v),
+                              onTap:
+                                  () =>
+                                      _showVisitDetailsBottomSheet(context, v),
                               child: Container(
                                 decoration: BoxDecoration(
                                   color:
@@ -611,7 +623,10 @@ class _ManagerEmployeeDetailsScreenState
                                           ? Colors.green.shade600
                                           : Colors.orange.shade600,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withOpacity(0.15),
@@ -654,7 +669,36 @@ class _ManagerEmployeeDetailsScreenState
                       child: IconButton(
                         icon: const Icon(Icons.map_rounded, color: Colors.blue),
                         tooltip: "Open in Google Maps",
-                        onPressed: () => RoutingService.launchGoogleMapsRoute(routePoints),
+                        onPressed: () {
+                          final visitStops =
+                              sortedVisits
+                                  .map((v) {
+                                    final lat = double.tryParse(
+                                      v['latitude']?.toString() ?? '',
+                                    );
+                                    final lon = double.tryParse(
+                                      v['longitude']?.toString() ?? '',
+                                    );
+                                    if (lat == null || lon == null) return null;
+                                    final payload =
+                                        v['payload'] as Map<String, dynamic>? ??
+                                        {};
+                                    final name =
+                                        payload['customer_name']?.toString() ??
+                                        '';
+                                    return {
+                                      'lat': lat,
+                                      'lon': lon,
+                                      'name': name,
+                                    };
+                                  })
+                                  .whereType<Map<String, dynamic>>()
+                                  .toList();
+                          RoutingService.launchGoogleMapsWithStops(
+                            routePoints,
+                            visitStops,
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -850,6 +894,163 @@ class _ManagerEmployeeDetailsScreenState
           const SizedBox(height: 16),
         ],
 
+        // Route Stops section
+        if (sortedVisits.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.blue.shade100),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.route_rounded,
+                      size: 14,
+                      color: Colors.blue.shade700,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "Route Stops (${sortedVisits.length})",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                "Tap to open in Maps",
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 72,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: sortedVisits.length,
+              itemBuilder: (context, idx) {
+                final v = sortedVisits[idx];
+                final lat = double.tryParse(v['latitude']?.toString() ?? '');
+                final lon = double.tryParse(v['longitude']?.toString() ?? '');
+                final payload = v['payload'] as Map<String, dynamic>? ?? {};
+                final name =
+                    payload['customer_name']?.toString() ?? 'Stop ${idx + 1}';
+                final isFarm = v['type'] == 'FARM_VISIT';
+                final canOpen = lat != null && lon != null;
+                return GestureDetector(
+                  onTap:
+                      canOpen
+                          ? () => RoutingService.launchGoogleMapsStop(
+                            LatLng(lat!, lon!),
+                            name: name,
+                          )
+                          : null,
+                  child: Container(
+                    width: 90,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color:
+                            isFarm
+                                ? Colors.green.shade200
+                                : Colors.orange.shade200,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Stack(
+                          alignment: Alignment.topRight,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color:
+                                    isFarm
+                                        ? Colors.green.shade50
+                                        : Colors.orange.shade50,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                isFarm
+                                    ? Icons.agriculture_rounded
+                                    : Icons.storefront_rounded,
+                                size: 16,
+                                color:
+                                    isFarm
+                                        ? Colors.green.shade700
+                                        : Colors.orange.shade700,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(
+                                color: Colors.blue,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${idx + 1}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        if (canOpen)
+                          Icon(
+                            Icons.open_in_new_rounded,
+                            size: 10,
+                            color: Colors.blue.shade400,
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
         // Marked Visits Title and Tabs
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -906,87 +1107,116 @@ class _ManagerEmployeeDetailsScreenState
               final phone = payload['mobile_no']?.toString() ?? 'N/A';
               final crop = payload['crop_name']?.toString();
 
-              return Card(
-                color: Colors.white,
-                elevation: 0,
-                margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: Colors.grey.shade200),
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
+              return GestureDetector(
+                onTap: () {
+                  final lat = double.tryParse(v['latitude']?.toString() ?? '');
+                  final lon = double.tryParse(v['longitude']?.toString() ?? '');
+                  if (lat != null && lon != null) {
+                    RoutingService.launchGoogleMapsStop(
+                      LatLng(lat, lon),
+                      name: name,
+                    );
+                  }
+                },
+                child: Card(
+                  color: Colors.white,
+                  elevation: 0,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: Colors.grey.shade200),
                   ),
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color:
-                          isFarm ? Colors.green.shade50 : Colors.orange.shade50,
-                      shape: BoxShape.circle,
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
                     ),
-                    child: Icon(
-                      isFarm
-                          ? Icons.agriculture_rounded
-                          : Icons.storefront_rounded,
-                      color:
-                          isFarm
-                              ? Colors.green.shade700
-                              : Colors.orange.shade700,
-                      size: 20,
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color:
+                            isFarm
+                                ? Colors.green.shade50
+                                : Colors.orange.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isFarm
+                            ? Icons.agriculture_rounded
+                            : Icons.storefront_rounded,
+                        color:
+                            isFarm
+                                ? Colors.green.shade700
+                                : Colors.orange.shade700,
+                        size: 20,
+                      ),
                     ),
-                  ),
-                  title: Text(
-                    name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  subtitle: Text(
-                    isFarm
-                        ? "Farm Visit • $crop\nPhone: $phone"
-                        : "Store Visit\nPhone: $phone",
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (phone != 'N/A' && phone.isNotEmpty) ...[
-                        IconButton(
-                          icon: const Icon(
-                            Icons.phone_rounded,
-                            color: Colors.green,
-                            size: 18,
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                           ),
-                          onPressed: () => launchUrl(Uri.parse('tel:$phone')),
-                          constraints: const BoxConstraints(),
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.chat_bubble_rounded,
-                            color: Colors.blue,
-                            size: 18,
-                          ),
-                          onPressed:
-                              () =>
-                                  launchUrl(Uri.parse('https://wa.me/$phone')),
-                          constraints: const BoxConstraints(),
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                        Icon(
+                          Icons.open_in_new_rounded,
+                          size: 13,
+                          color: Colors.blue.shade400,
                         ),
                       ],
-                      const SizedBox(width: 4),
-                      Text(
-                        time,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                          color: Colors.green,
-                        ),
+                    ),
+                    subtitle: Text(
+                      isFarm
+                          ? "Farm Visit • $crop\nPhone: $phone"
+                          : "Store Visit\nPhone: $phone",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
                       ),
-                    ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (phone != 'N/A' && phone.isNotEmpty) ...[
+                          IconButton(
+                            icon: const Icon(
+                              Icons.phone_rounded,
+                              color: Colors.green,
+                              size: 18,
+                            ),
+                            onPressed: () => launchUrl(Uri.parse('tel:$phone')),
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.chat_bubble_rounded,
+                              color: Colors.blue,
+                              size: 18,
+                            ),
+                            onPressed:
+                                () => launchUrl(
+                                  Uri.parse('https://wa.me/$phone'),
+                                ),
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                          ),
+                        ],
+                        const SizedBox(width: 4),
+                        Text(
+                          time,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -2100,16 +2330,53 @@ class _ManagerEmployeeDetailsScreenState
                 ],
               ),
               const SizedBox(height: 16),
-              Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+
+                  // Open store location in Maps
+                  IconButton(
+                    tooltip: 'Open location in Maps',
+                    icon: Icon(
+                      Icons.location_on_rounded,
+                      color: Colors.green.shade700,
+                      size: 26,
+                    ),
+                    onPressed: () async {
+                      final latitude = double.tryParse(
+                        visit['latitude']?.toString() ?? '',
+                      );
+                      final longitude = double.tryParse(
+                        visit['longitude']?.toString() ?? '',
+                      );
+
+                      if (latitude != null && longitude != null) {
+                        await RoutingService.launchGoogleMapsStop(
+                          LatLng(latitude, longitude),
+                          name: name,
+                        );
+                      } else {
+                        Get.snackbar(
+                          'Location unavailable',
+                          'No valid location coordinates found for this visit.',
+                        );
+                      }
+                    },
+                  ),
+                ],
               ),
               if (phone != 'N/A') ...[
                 const SizedBox(height: 8),
+
                 Row(
                   children: [
                     Text(
@@ -2314,9 +2581,11 @@ class _ManagerEmployeeDetailsScreenState
               final dist = dayData['travel_meter'] ?? 0;
               final ws = dayData['work_session'];
               final hasSession = ws != null;
-              final mins = hasSession
-                  ? int.tryParse(ws['working_minutes']?.toString() ?? '') ?? 0
-                  : 0;
+              final mins =
+                  hasSession
+                      ? int.tryParse(ws['working_minutes']?.toString() ?? '') ??
+                          0
+                      : 0;
               final hrs = mins ~/ 60;
               final remMins = mins % 60;
               final timeStr = hrs > 0 ? "${hrs}h ${remMins}m" : "${remMins}m";
@@ -2328,17 +2597,24 @@ class _ManagerEmployeeDetailsScreenState
                       ).format(marketerController.selectedSpecificDay.value!) ==
                       DateFormat('yyyy-MM-dd').format(date);
 
-              Color dateColor = isSelected ? Colors.blue.shade700 : Colors.black87;
-              Color timeColor = isSelected ? Colors.blue.shade700 : Colors.grey.shade600;
+              Color dateColor =
+                  isSelected ? Colors.blue.shade700 : Colors.black87;
+              Color timeColor =
+                  isSelected ? Colors.blue.shade700 : Colors.grey.shade600;
               if (!hasSession) {
-                dateColor = isSelected ? Colors.red.shade700 : Colors.grey.shade500;
-                timeColor = isSelected ? Colors.red.shade700 : Colors.red.shade300;
+                dateColor =
+                    isSelected ? Colors.red.shade700 : Colors.grey.shade500;
+                timeColor =
+                    isSelected ? Colors.red.shade700 : Colors.red.shade300;
               }
 
               return InkWell(
                 onTap: () => marketerController.selectSpecificDay(date),
                 child: Container(
-                  color: !hasSession && !isSelected ? Colors.grey.shade50.withOpacity(0.5) : Colors.transparent,
+                  color:
+                      !hasSession && !isSelected
+                          ? Colors.grey.shade50.withOpacity(0.5)
+                          : Colors.transparent,
                   padding: const EdgeInsets.symmetric(
                     vertical: 8.0,
                     horizontal: 8.0,
@@ -2351,15 +2627,23 @@ class _ManagerEmployeeDetailsScreenState
                           Icon(
                             Icons.calendar_today_rounded,
                             size: 14,
-                            color: !hasSession 
-                                ? (isSelected ? Colors.red.shade700 : Colors.grey)
-                                : (isSelected ? Colors.blue.shade700 : Colors.grey),
+                            color:
+                                !hasSession
+                                    ? (isSelected
+                                        ? Colors.red.shade700
+                                        : Colors.grey)
+                                    : (isSelected
+                                        ? Colors.blue.shade700
+                                        : Colors.grey),
                           ),
                           const SizedBox(width: 8),
                           Text(
                             DateFormat('EEE, d MMM').format(date),
                             style: TextStyle(
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              fontWeight:
+                                  isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                               color: dateColor,
                               fontSize: 12,
                             ),
@@ -2371,7 +2655,10 @@ class _ManagerEmployeeDetailsScreenState
                               style: TextStyle(
                                 fontSize: 9,
                                 fontWeight: FontWeight.bold,
-                                color: isSelected ? Colors.red.shade900 : Colors.red.shade400,
+                                color:
+                                    isSelected
+                                        ? Colors.red.shade900
+                                        : Colors.red.shade400,
                               ),
                             ),
                           ],
@@ -2384,7 +2671,10 @@ class _ManagerEmployeeDetailsScreenState
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
-                              color: !hasSession ? Colors.grey.shade500 : Colors.black87,
+                              color:
+                                  !hasSession
+                                      ? Colors.grey.shade500
+                                      : Colors.black87,
                             ),
                           ),
                           const SizedBox(width: 12),

@@ -1466,7 +1466,7 @@ class VisitRequestsScreen extends StatelessWidget {
                       barrierDismissible: false,
                     );
 
-                    final success = await controller.submitFeedback(
+                    final result = await controller.submitFeedback(
                       visitId: visit.id!,
                       feedback: feedbackController.text,
                       recommendation: recommendationController.text,
@@ -1476,17 +1476,17 @@ class VisitRequestsScreen extends StatelessWidget {
                     );
 
                     Get.back();
-                    if (success) {
+                    if (result.success) {
                       Get.snackbar(
                         "Success",
-                        "Feedback submitted successfully",
+                        result.message,
                         backgroundColor: Colors.green.shade100,
                         colorText: Colors.green.shade900,
                       );
                     } else {
                       Get.snackbar(
                         "Error",
-                        "Failed to submit feedback",
+                        result.message,
                         backgroundColor: Colors.red.shade100,
                         colorText: Colors.red.shade900,
                       );

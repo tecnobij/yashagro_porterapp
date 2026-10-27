@@ -232,7 +232,7 @@ class VisitApiService {
   // ---- Visit Feedback APIs ----
 
   /// POST /api/visit-feedback - Submit visit feedback
-  Future<bool> submitVisitFeedback({
+  Future<({bool success, String message})> submitVisitFeedback({
     required int visitId,
     required String feedback,
     required String recommendation,
@@ -241,7 +241,9 @@ class VisitApiService {
   }) async {
     try {
       final headers = await _getHeaders();
-      if (headers == null) return false;
+      if (headers == null) {
+        return (success: false, message: "Authentication failed. Please login again.");
+      }
 
       Response response = await _dio.post(
         "$baseUrl${ApiRoutes.submitVisitFeedbackEndpoint}",
@@ -256,12 +258,28 @@ class VisitApiService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
+        String msg = "Feedback submitted successfully";
+        if (response.data is Map && response.data['message'] != null) {
+          msg = response.data['message'].toString();
+        }
+        return (success: true, message: msg);
       }
-      return false;
+      return (success: false, message: "Failed to submit feedback");
+    } on DioException catch (e) {
+      log("❌ Error Submitting Visit Feedback: ${e.response?.data ?? e}");
+      String msg = "Failed to submit feedback";
+      final data = e.response?.data;
+      if (data is Map && data['message'] != null) {
+        msg = data['message'].toString();
+      } else if (data is Map && data['error'] != null) {
+        msg = data['error'].toString();
+      } else if (e.message != null && e.message!.isNotEmpty) {
+        msg = e.message!;
+      }
+      return (success: false, message: msg);
     } catch (e) {
       log("❌ Error Submitting Visit Feedback: $e");
-      return false;
+      return (success: false, message: e.toString());
     }
   }
 
